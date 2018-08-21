@@ -7,52 +7,104 @@ using System.Threading.Tasks;
 
 namespace LuaWrapper
 {
+    public enum LuaState : int
+    {
+        OK,
+        YIELD,
+        ERRRUN,
+        ERRSYNTAX,
+        ERRMEM,
+        ERRGCMM,
+        ERRERR,
+        ERRFILE
+    }
+
     public class LuaContext
     {
         private IntPtr _luaState;
 
+        /// <summary>
+        /// Creates a new instance of a LuaContext
+        /// </summary>
         public LuaContext()
         {
             _luaState = NativeCalls.luaL_newstate();
             NativeCalls.luaL_openlibs(_luaState);
         }
 
+        /// <summary>
+        /// Destroys the LuaContext on disposal of object
+        /// </summary>
         ~LuaContext()
         {
             NativeCalls.lua_close(_luaState);
         }
 
-        public int LoadFromFile(string filepath)
+        /// <summary>
+        /// Loads a script from a given file
+        /// </summary>
+        /// <param name="filepath">File to load the script from</param>
+        /// <returns>State of Load</returns>
+        public LuaState LoadFromFile(string filepath)
         {
-            return NativeCalls.luaL_loadfile(_luaState, filepath);
+            return (LuaState)NativeCalls.luaL_loadfile(_luaState, filepath);
         }
 
-        public int LoadFromString(string filecontent)
+        /// <summary>
+        /// Loads a script from a given string
+        /// </summary>
+        /// <param name="filecontent">String to load as the script</param>
+        /// <returns>State of load</returns>
+        public LuaState LoadFromString(string filecontent)
         {
-            return NativeCalls.luaL_loadstring(_luaState, filecontent);
+            return (LuaState)NativeCalls.luaL_loadstring(_luaState, filecontent);
         }
 
-        public int Execute()
+        /// <summary>
+        /// Execute the script globally
+        /// </summary>
+        /// <returns>State of execution</returns>
+        public LuaState Execute()
         {
             int ret = NativeCalls.lua_pcall(_luaState, 0, 0, 0);
             NativeCalls.lua_pop(_luaState, 1);
-            return ret;
+            return (LuaState)ret;
         }
 
-        public void RegisterFunction(string functionName, string @namespace, lua_CFunction function)
+        /// <summary>
+        /// Execute specific function
+        /// </summary>
+        /// <param name="functionName">Name of the function</param>
+        /// <param name="args">Parameters to pass to the function</param>
+        /// <returns>Result of the function</returns>
+        public object[] Execute(string functionName, params object[] args)
         {
-            NativeCalls.lua_pushnil(_luaState);
-            NativeCalls.lua_setglobal(_luaState, (@namespace) + "." + functionName);
+            NativeCalls.lua_getglobal(_luaState, functionName);
 
-            luaL_Reg[] regs = new luaL_Reg[] {
-                new luaL_Reg() { name =  Marshal.StringToHGlobalAnsi(functionName), func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction(function)) },
-                new luaL_Reg() { name = IntPtr.Zero, func = IntPtr.Zero }
-            };
+            foreach (object obj in args)
+                PushObject(obj);
 
-            NativeCalls.luaL_newlib(_luaState, regs);
-            NativeCalls.lua_setglobal(_luaState, @namespace);
+            NativeCalls.lua_pcall(_luaState, args.Length, -1, 0);
+
+            List<object> retList = new List<object>();
+
+            while (NativeCalls.lua_gettop(_luaState) >= 0)
+            {
+                retList.Add(LuaToObject(-2));
+
+                NativeCalls.lua_pop(_luaState, 1);
+            }
+
+            retList.Reverse();
+
+            return retList.ToArray();
         }
 
+        /// <summary>
+        /// Registers any function to the context
+        /// </summary>
+        /// <param name="functionName">Name of the function</param>
+        /// <param name="function">Function delegate</param>
         public void RegisterFunction(string functionName, lua_CFunction function)
         {
             NativeCalls.lua_pushnil(_luaState);
@@ -67,6 +119,31 @@ namespace LuaWrapper
             NativeCalls.lua_setglobal(_luaState, "");
         }
 
+        /// <summary>
+        /// Registers any function to the context
+        /// </summary>
+        /// <param name="nameSpace">Namespace of the function</param>
+        /// <param name="functionName">Name of the function</param>
+        /// <param name="function">Function delegate</param>
+        public void RegisterFunction(string nameSpace, string functionName, lua_CFunction function)
+        {
+            NativeCalls.lua_pushnil(_luaState);
+            NativeCalls.lua_setglobal(_luaState, (nameSpace) + "." + functionName);
+
+            luaL_Reg[] regs = new luaL_Reg[] {
+                new luaL_Reg() { name =  Marshal.StringToHGlobalAnsi(functionName), func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction(function)) },
+                new luaL_Reg() { name = IntPtr.Zero, func = IntPtr.Zero }
+            };
+
+            NativeCalls.luaL_newlib(_luaState, regs);
+            NativeCalls.lua_setglobal(_luaState, nameSpace);
+        }
+
+        /// <summary>
+        /// Converts a Lua value to a .NET object
+        /// </summary>
+        /// <param name="index">Index of value on the stack</param>
+        /// <returns>.NET object</returns>
         private object LuaToObject(int index)
         {
             switch (NativeCalls.lua_type(_luaState, -1))
@@ -100,6 +177,10 @@ namespace LuaWrapper
             return null;
         }
 
+        /// <summary>
+        /// Pushes value on stack
+        /// </summary>
+        /// <param name="arg">Value to push</param>
         private void PushObject(object arg)
         {
             if (arg is int) NativeCalls.lua_pushnumber(_luaState, (int)arg);
@@ -108,29 +189,5 @@ namespace LuaWrapper
             else if (arg is bool) NativeCalls.lua_pushboolean(_luaState, (int)arg);
             else if (arg is null) NativeCalls.lua_pushnil(_luaState);
         }
-
-        public object[] Execute(string functionName, params object[] args)
-        {
-            NativeCalls.lua_getglobal(_luaState, functionName);
-
-            foreach (object obj in args)
-                PushObject(obj);
-
-            NativeCalls.lua_pcall(_luaState, args.Length, -1, 0);
-
-            List<object> retList = new List<object>();
-
-            while (NativeCalls.lua_gettop(_luaState) >= 0)
-            {
-                retList.Add(LuaToObject(-2));
-
-                NativeCalls.lua_pop(_luaState, 1);
-            }
-
-            retList.Reverse();
-
-            return retList.ToArray();
-        }
-
     }
 }
