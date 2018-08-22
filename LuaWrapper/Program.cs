@@ -9,26 +9,32 @@ namespace LuaWrapper
 {
     class Program
     {
-        static int lua_test(IntPtr l)
+        public static object[] lua_test(string i, double j)
         {
-            Console.WriteLine("lua_test called!");
+            Console.WriteLine($"lua_test called! {i[0]}, {j}");
 
-            NativeCalls.lua_pushnumber(l, 69);
-
-            return 1;
+            return new object[] { "Test1", "Test2" };
         }
 
         static void Main(string[] args)
-        {           
+        {
             LuaContext context = new LuaContext();
             context.LoadFromFile("test.lua");
-            context.RegisterFunction("test", lua_test);
+            context.RegisterFunction("edizon", "test", new Func<string, double, object[]>(lua_test));
             context.Execute();
-
-            object[] ret = context.Execute("lol");
 
             Console.ReadKey();
 
+        }
+
+        public static double lol(int i, int j)
+        {
+            return 5;
+        }
+
+        public static void test(Delegate d)
+        {
+            var i = d.Method.GetParameters();
         }
     }
 }

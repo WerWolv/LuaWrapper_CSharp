@@ -19,6 +19,9 @@ namespace LuaWrapper
         ERRFILE
     }
 
+    public class LuaFunc<T> : Func<T, object[]> { 
+}
+
     public class LuaContext
     {
         private IntPtr _luaState;
@@ -103,35 +106,31 @@ namespace LuaWrapper
         /// <summary>
         /// Registers any function to the context
         /// </summary>
-        /// <param name="functionName">Name of the function</param>
-        /// <param name="function">Function delegate</param>
-        public void RegisterFunction(string functionName, lua_CFunction function)
-        {
-            NativeCalls.lua_pushnil(_luaState);
-            NativeCalls.lua_setglobal(_luaState, functionName);
-
-            luaL_Reg[] regs = new luaL_Reg[] {
-                new luaL_Reg() { name =  Marshal.StringToHGlobalAnsi(functionName), func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction(function)) },
-                new luaL_Reg() { name = IntPtr.Zero, func = IntPtr.Zero }
-            };
-
-            NativeCalls.luaL_newlib(_luaState, regs);
-            NativeCalls.lua_setglobal(_luaState, "");
-        }
-
-        /// <summary>
-        /// Registers any function to the context
-        /// </summary>
         /// <param name="nameSpace">Namespace of the function</param>
         /// <param name="functionName">Name of the function</param>
         /// <param name="function">Function delegate</param>
-        public void RegisterFunction(string nameSpace, string functionName, lua_CFunction function)
+        public void RegisterFunction(string nameSpace, string functionName, Delegate function)
         {
             NativeCalls.lua_pushnil(_luaState);
             NativeCalls.lua_setglobal(_luaState, (nameSpace) + "." + functionName);
 
             luaL_Reg[] regs = new luaL_Reg[] {
-                new luaL_Reg() { name =  Marshal.StringToHGlobalAnsi(functionName), func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction(function)) },
+                new luaL_Reg() { name =  Marshal.StringToHGlobalAnsi(functionName), func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction((IntPtr L) => {
+                    List<object> args = new List<object>();
+                    for(int i = 0; i < function.Method.GetParameters().Length; i++) {
+                        args.Add(LuaToObject(-1));
+                        NativeCalls.lua_pop(_luaState, 1);
+                    }
+
+                    args.Reverse();
+
+                    object[] retVals = ((object[])function.DynamicInvoke(args.ToArray()));
+
+                    foreach(object val in retVals)
+                        PushObject(val);
+
+                    return retVals.Length;
+                })) },
                 new luaL_Reg() { name = IntPtr.Zero, func = IntPtr.Zero }
             };
 
@@ -183,8 +182,8 @@ namespace LuaWrapper
         /// <param name="arg">Value to push</param>
         private void PushObject(object arg)
         {
-            if (arg is int) NativeCalls.lua_pushnumber(_luaState, (int)arg);
-            else if (arg is double || arg is float) NativeCalls.lua_pushnumber(_luaState, (double)arg);
+            if (arg is int) NativeCalls.lua_pushnumber(_luaState, Convert.ToInt32(arg));
+            else if (arg is double || arg is float) NativeCalls.lua_pushnumber(_luaState, Convert.ToDouble(arg));
             else if (arg is string) NativeCalls.lua_pushstring(_luaState, (string)arg);
             else if (arg is bool) NativeCalls.lua_pushboolean(_luaState, (int)arg);
             else if (arg is null) NativeCalls.lua_pushnil(_luaState);
