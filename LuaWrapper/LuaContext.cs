@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Reflection;
 
 namespace LuaWrapper
 {
@@ -18,9 +19,6 @@ namespace LuaWrapper
         ERRERR,
         ERRFILE
     }
-
-    public class LuaFunc<T> : Func<T, object[]> { 
-}
 
     public class LuaContext
     {
@@ -116,26 +114,79 @@ namespace LuaWrapper
 
             luaL_Reg[] regs = new luaL_Reg[] {
                 new luaL_Reg() { name =  Marshal.StringToHGlobalAnsi(functionName), func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction((IntPtr L) => {
+                    var delegateParaCount=function.Method.GetParameters().Length;
+
+                    var n = NativeCalls.lua_gettop(L);
+                    if(n < delegateParaCount){
+                        NativeCalls.lua_settop(L,0);
+                        throw new InvalidOperationException($"Lua gave {n} parameters. {delegateParaCount} expected.");
+                    }
+
                     List<object> args = new List<object>();
-                    for(int i = 0; i < function.Method.GetParameters().Length; i++) {
-                        args.Add(LuaToObject(-1));
+                    for(int i = 0; i < delegateParaCount; i++) {
+                        var obj=LuaToObject(-1);
+
+                        if(function.Method.GetParameters()[delegateParaCount-1-i].ParameterType.IsPrimitive)
+                            obj=LuaDoubleToNumeric(obj,function.Method.GetParameters()[delegateParaCount-1-i].ParameterType);
+
+                        args.Add(obj);
                         NativeCalls.lua_pop(_luaState, 1);
                     }
 
                     args.Reverse();
 
-                    object[] retVals = ((object[])function.DynamicInvoke(args.ToArray()));
+                    if (function.Method.ReturnType==typeof(void))
+                    {
+                        function.DynamicInvoke(args.ToArray());
 
-                    foreach(object val in retVals)
-                        PushObject(val);
+                        return 0;
+                    }
+                    else if (function.Method.ReturnType.IsPrimitive || function.Method.ReturnType==typeof(string) || function.Method.ReturnType==typeof(decimal))
+                    {
+                        object retVal = function.DynamicInvoke(args.ToArray());
 
-                    return retVals.Length;
+                        PushObject(retVal);
+
+                        return 1;
+                    }
+                    else if(function.Method.ReturnType.Name.Contains("ValueTuple"))
+                    {
+                        object[] retVals=TupleToArray(function.DynamicInvoke(args.ToArray()));
+
+                        foreach(object val in retVals)
+                            PushObject(val);
+
+                        return retVals.Length;
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Unsupported ReturnType {function.Method.ReturnType.ToString()} in delegate");
+                    }
                 })) },
                 new luaL_Reg() { name = IntPtr.Zero, func = IntPtr.Zero }
             };
 
             NativeCalls.luaL_newlib(_luaState, regs);
             NativeCalls.lua_setglobal(_luaState, nameSpace);
+        }
+
+        private object LuaDoubleToNumeric(object input, Type toConvert)
+        {
+            switch (Type.GetTypeCode(toConvert))
+            {
+                case TypeCode.Int32: return Convert.ToInt32(input);
+                default: return input;
+            }
+        }
+
+        private object[] TupleToArray(object tuple)
+        {
+            List<object> result = new List<object>();
+
+            foreach (var f in tuple.GetType().GetFields())
+                result.Add(f.GetValue(tuple));
+
+            return result.ToArray();
         }
 
         /// <summary>

@@ -9,18 +9,21 @@ namespace LuaWrapper
 {
     class Program
     {
-        public static object[] lua_test(string i, double j)
+        static (int, int) multRet(string s, int i)
         {
-            Console.WriteLine($"lua_test called! {i[0]}, {j}");
-
-            return new object[] { "Test1", "Test2" };
+            Console.WriteLine(s);
+            return (i, i + 2);
         }
 
         static void Main(string[] args)
         {
             LuaContext context = new LuaContext();
             context.LoadFromFile("test.lua");
-            context.RegisterFunction("edizon", "test", new Func<string, double, object[]>(lua_test));
+
+            //context.RegisterFunction("edizon", "emptyRet", new Action<int>((int i) => { Console.WriteLine(i); }));
+            //context.RegisterFunction("edizon", "oneRet", new Func<string, string>((string i) => { return i; }));
+            context.RegisterFunction("edizon", "multRet", new Func<string, int, (int, int)>(multRet));
+
             context.Execute();
 
             Console.ReadKey();
