@@ -183,7 +183,5 @@ namespace LuaWrapper
 
             luaL_setfuncs(L, lPtr, 0);
         }
-
-
     }
 }
