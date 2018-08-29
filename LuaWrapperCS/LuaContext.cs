@@ -20,7 +20,7 @@ namespace LuaWrapper
         ERRFILE
     }
 
-    public class LuaContext
+    public class LuaContext : IDisposable
     {
         private IntPtr _luaState;
 
@@ -36,7 +36,7 @@ namespace LuaWrapper
         /// <summary>
         /// Destroys the LuaContext on disposal of object
         /// </summary>
-        ~LuaContext()
+        public void Dispose()
         {
             NativeCalls.lua_close(_luaState);
         }
@@ -170,6 +170,12 @@ namespace LuaWrapper
             NativeCalls.lua_setglobal(_luaState, nameSpace);
         }
 
+        /// <summary>
+        /// Converts Lua double to numeric .NET type
+        /// </summary>
+        /// <param name="input">Double to convert</param>
+        /// <param name="toConvert">Any primitive numeric .NET type</param>
+        /// <returns></returns>
         private object LuaDoubleToNumeric(object input, Type toConvert)
         {
             switch (Type.GetTypeCode(toConvert))
@@ -189,8 +195,16 @@ namespace LuaWrapper
             }
         }
 
+        /// <summary>
+        /// Convert ValueTuple to array
+        /// </summary>
+        /// <param name="tuple">ValueTuple to convert</param>
+        /// <returns>Array of values</returns>
         private object[] TupleToArray(object tuple)
         {
+            if (!(tuple is ValueTuple))
+                return null;
+
             List<object> result = new List<object>();
 
             foreach (var f in tuple.GetType().GetFields())

@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27703.2042
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaWrapper", "LuaWrapper\LuaWrapper.csproj", "{3AAE7332-9AA3-4E28-9BC5-B423C92EE1A1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestProgram", "LuaWrapper\TestProgram.csproj", "{3AAE7332-9AA3-4E28-9BC5-B423C92EE1A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaWrapperCS", "LuaWrapperCS\LuaWrapperCS.csproj", "{A6B66F3E-E442-4805-BFAE-B286608494D6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{3AAE7332-9AA3-4E28-9BC5-B423C92EE1A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3AAE7332-9AA3-4E28-9BC5-B423C92EE1A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3AAE7332-9AA3-4E28-9BC5-B423C92EE1A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A6B66F3E-E442-4805-BFAE-B286608494D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A6B66F3E-E442-4805-BFAE-B286608494D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A6B66F3E-E442-4805-BFAE-B286608494D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A6B66F3E-E442-4805-BFAE-B286608494D6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
