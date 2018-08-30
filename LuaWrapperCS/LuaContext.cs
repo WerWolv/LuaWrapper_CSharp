@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Reflection;
 
+
 namespace LuaWrapper
 {
     public enum LuaState : int
@@ -23,6 +24,7 @@ namespace LuaWrapper
     public class LuaContext : IDisposable
     {
         private IntPtr _luaState;
+        private Dictionary<string, List<luaL_Reg>> _registeredLuaFunctions = new Dictionary<string, List<luaL_Reg>>();
 
         /// <summary>
         /// Creates a new instance of a LuaContext
@@ -104,30 +106,31 @@ namespace LuaWrapper
         /// <summary>
         /// Registers any function to the context
         /// </summary>
-        /// <param name="nameSpace">Namespace of the function</param>
+        /// <param name="nameSpace">Namespace of the function. Can be "" to register the function in global space</param>
         /// <param name="functionName">Name of the function</param>
         /// <param name="function">Function delegate</param>
         public void RegisterFunction(string nameSpace, string functionName, Delegate function)
         {
-            NativeCalls.lua_pushnil(_luaState);
-            NativeCalls.lua_setglobal(_luaState, (nameSpace) + "." + functionName);
-
-            luaL_Reg[] regs = new luaL_Reg[] {
-                new luaL_Reg() { name =  Marshal.StringToHGlobalAnsi(functionName), func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction((IntPtr L) => {
-                    var delegateParaCount=function.Method.GetParameters().Length;
+            luaL_Reg newFunc = new luaL_Reg()
+            {
+                name = Marshal.StringToHGlobalAnsi(functionName),
+                func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction((IntPtr L) => {
+                    var delegateParaCount = function.Method.GetParameters().Length;
 
                     var n = NativeCalls.lua_gettop(L);
-                    if(n < delegateParaCount){
-                        NativeCalls.lua_settop(L,0);
+                    if (n < delegateParaCount)
+                    {
+                        NativeCalls.lua_settop(L, 0);
                         throw new InvalidOperationException($"Lua gave {n} parameters. {delegateParaCount} expected.");
                     }
 
                     List<object> args = new List<object>();
-                    for(int i = 0; i < delegateParaCount; i++) {
-                        var obj=LuaToObject(-1);
+                    for (int i = 0; i < delegateParaCount; i++)
+                    {
+                        var obj = LuaToObject(-1);
 
-                        if(function.Method.GetParameters()[delegateParaCount-1-i].ParameterType.IsPrimitive)
-                            obj=LuaDoubleToNumeric(obj,function.Method.GetParameters()[delegateParaCount-1-i].ParameterType);
+                        if (function.Method.GetParameters()[delegateParaCount - 1 - i].ParameterType.IsPrimitive)
+                            obj = LuaDoubleToNumeric(obj, function.Method.GetParameters()[delegateParaCount - 1 - i].ParameterType);
 
                         args.Add(obj);
                         NativeCalls.lua_pop(_luaState, 1);
@@ -135,13 +138,13 @@ namespace LuaWrapper
 
                     args.Reverse();
 
-                    if (function.Method.ReturnType==typeof(void))
+                    if (function.Method.ReturnType == typeof(void))
                     {
                         function.DynamicInvoke(args.ToArray());
 
                         return 0;
                     }
-                    else if (function.Method.ReturnType.IsPrimitive || function.Method.ReturnType==typeof(string) || function.Method.ReturnType==typeof(decimal))
+                    else if (function.Method.ReturnType.IsPrimitive || function.Method.ReturnType == typeof(string) || function.Method.ReturnType == typeof(decimal))
                     {
                         object retVal = function.DynamicInvoke(args.ToArray());
 
@@ -149,11 +152,11 @@ namespace LuaWrapper
 
                         return 1;
                     }
-                    else if(function.Method.ReturnType.Name.Contains("ValueTuple"))
+                    else if (function.Method.ReturnType.Name.Contains("ValueTuple"))
                     {
-                        object[] retVals=TupleToArray(function.DynamicInvoke(args.ToArray()));
+                        object[] retVals = TupleToArray(function.DynamicInvoke(args.ToArray()));
 
-                        foreach(object val in retVals)
+                        foreach (object val in retVals)
                             PushObject(val);
 
                         return retVals.Length;
@@ -162,12 +165,31 @@ namespace LuaWrapper
                     {
                         throw new InvalidOperationException($"Unsupported ReturnType {function.Method.ReturnType.ToString()} in delegate");
                     }
-                })) },
-                new luaL_Reg() { name = IntPtr.Zero, func = IntPtr.Zero }
+                }))
             };
 
-            NativeCalls.luaL_newlib(_luaState, regs);
-            NativeCalls.lua_setglobal(_luaState, nameSpace);
+            if (!_registeredLuaFunctions.ContainsKey(nameSpace))
+                _registeredLuaFunctions.Add(nameSpace, new List<luaL_Reg>());
+
+            _registeredLuaFunctions[nameSpace].Add(newFunc);
+
+            foreach (var entry in _registeredLuaFunctions)
+            {
+                luaL_Reg[] regs = new luaL_Reg[entry.Value.Count + 1];
+                entry.Value.CopyTo(regs, 0);
+                regs[entry.Value.Count] = new luaL_Reg() { name = IntPtr.Zero, func = IntPtr.Zero };
+
+                if (entry.Key == "")
+                {
+                    foreach (var reg in entry.Value)
+                        NativeCalls.lua_register(_luaState, Marshal.PtrToStringAnsi(reg.name), (lua_CFunction)Marshal.GetDelegateForFunctionPointer(reg.func, typeof(lua_CFunction)));
+                }
+                else
+                {
+                    NativeCalls.luaL_newlib(_luaState, regs);
+                    NativeCalls.lua_setglobal(_luaState, entry.Key);
+                }
+            }
         }
 
         /// <summary>
@@ -202,6 +224,9 @@ namespace LuaWrapper
         /// <returns>Array of values</returns>
         private object[] TupleToArray(object tuple)
         {
+            /* if (!(tuple is ValueTuple))
+                return null;*/
+
             List<object> result = new List<object>();
 
             foreach (var f in tuple.GetType().GetFields())

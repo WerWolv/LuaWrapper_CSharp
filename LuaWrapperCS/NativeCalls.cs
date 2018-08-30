@@ -183,5 +183,11 @@ namespace LuaWrapper
 
             luaL_setfuncs(L, lPtr, 0);
         }
+
+        public static void lua_register(IntPtr L, string name, lua_CFunction fn)
+        {
+            lua_pushcfunction(L, fn);
+            lua_setglobal(L, name);
+        }
     }
 }
