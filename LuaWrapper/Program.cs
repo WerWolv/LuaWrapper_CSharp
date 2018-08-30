@@ -20,8 +20,8 @@ namespace LuaWrapper
             LuaContext context = new LuaContext();
             context.LoadFromFile("test.lua");
 
-            //context.RegisterFunction("edizon", "emptyRet", new Action<int>((int i) => { Console.WriteLine(i); }));
-            //context.RegisterFunction("edizon", "oneRet", new Func<string, string>((string i) => { return i; }));
+            context.RegisterFunction("", "emptyRet", new Action<int>((int i) => { Console.WriteLine(i); }));
+            context.RegisterFunction("edizon", "oneRet", new Func<string, string>((string i) => { return i; }));
             context.RegisterFunction("edizon", "multRet", new Func<string, int, (int, int)>(multRet));
 
             context.Execute();
