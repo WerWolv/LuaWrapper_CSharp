@@ -202,9 +202,6 @@ namespace LuaWrapper
         /// <returns>Array of values</returns>
         private object[] TupleToArray(object tuple)
         {
-            if (!(tuple is ValueTuple))
-                return null;
-
             List<object> result = new List<object>();
 
             foreach (var f in tuple.GetType().GetFields())
