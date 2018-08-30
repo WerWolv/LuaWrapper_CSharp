@@ -11,24 +11,25 @@ namespace LuaWrapper
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct luaL_Reg
-    {   public IntPtr name;
+    {
+        public IntPtr name;
 
         public IntPtr func;
     }
 
     public static class NativeCalls
     {
-        public const int LUA_TNONE          = -1;
-        public const int LUA_TNIL           =  0;
-        public const int LUA_TBOOLEAN       =  1;
-        public const int LUA_TLIGHTUSERDATA =  2;
-        public const int LUA_TNUMBER        =  3;
-        public const int LUA_TSTRING        =  4;
-        public const int LUA_TTABLE         =  5;
-        public const int LUA_TFUNCTION      =  6;
-        public const int LUA_TUSERDATA      =  7;
-        public const int LUA_TTHREAD        =  8;
-        public const int LUA_NUMTAGS        =  9;
+        public const int LUA_TNONE = -1;
+        public const int LUA_TNIL = 0;
+        public const int LUA_TBOOLEAN = 1;
+        public const int LUA_TLIGHTUSERDATA = 2;
+        public const int LUA_TNUMBER = 3;
+        public const int LUA_TSTRING = 4;
+        public const int LUA_TTABLE = 5;
+        public const int LUA_TFUNCTION = 6;
+        public const int LUA_TUSERDATA = 7;
+        public const int LUA_TTHREAD = 8;
+        public const int LUA_NUMTAGS = 9;
 
 
         [DllImport("lua.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "luaL_newstate")]
@@ -72,6 +73,9 @@ namespace LuaWrapper
 
         [DllImport("lua.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "lua_settop")]
         public static extern void lua_settop(IntPtr L, int index);
+
+        [DllImport("lua.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "lua_settable")]
+        public static extern void lua_settable(IntPtr L, int index);
 
         [DllImport("lua.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "lua_tointegerx")]
         public static extern int lua_tointegerx(IntPtr L, int index, IntPtr isnum);

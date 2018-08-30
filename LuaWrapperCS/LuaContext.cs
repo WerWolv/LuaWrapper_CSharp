@@ -80,14 +80,17 @@ namespace LuaWrapper
         /// <param name="functionName">Name of the function</param>
         /// <param name="args">Parameters to pass to the function</param>
         /// <returns>Result of the function</returns>
-        public object[] Execute(string functionName, params object[] args)
+        public (object[] result, bool success) Execute(string functionName, params object[] args)
         {
+            bool success = true;
+
             NativeCalls.lua_getglobal(_luaState, functionName);
 
             foreach (object obj in args)
                 PushObject(obj);
 
-            NativeCalls.lua_pcall(_luaState, args.Length, -1, 0);
+            if ((LuaState)NativeCalls.lua_pcall(_luaState, args.Length, -1, 0) != LuaState.OK)
+                success = false;
 
             List<object> retList = new List<object>();
 
@@ -100,11 +103,18 @@ namespace LuaWrapper
 
             retList.Reverse();
 
-            return retList.ToArray();
+            return (retList.ToArray(), success);
         }
 
         /// <summary>
-        /// Registers any function to the context
+        /// Regsiters any function to the global namespace
+        /// </summary>
+        /// <param name="functionName">Name of the function</param>
+        /// <param name="function">Function delegate</param>
+        public void RegisterFunction(string functionName, Delegate function) => RegisterFunction("", functionName, function);
+
+        /// <summary>
+        /// Registers any function to the context in a given namespace
         /// </summary>
         /// <param name="nameSpace">Namespace of the function. Can be "" to register the function in global space</param>
         /// <param name="functionName">Name of the function</param>
@@ -114,7 +124,8 @@ namespace LuaWrapper
             luaL_Reg newFunc = new luaL_Reg()
             {
                 name = Marshal.StringToHGlobalAnsi(functionName),
-                func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction((IntPtr L) => {
+                func = Marshal.GetFunctionPointerForDelegate(new lua_CFunction((IntPtr L) =>
+                {
                     var delegateParaCount = function.Method.GetParameters().Length;
 
                     var n = NativeCalls.lua_gettop(L);
@@ -138,19 +149,18 @@ namespace LuaWrapper
 
                     args.Reverse();
 
+                    var returnCount = 0;
                     if (function.Method.ReturnType == typeof(void))
                     {
                         function.DynamicInvoke(args.ToArray());
-
-                        return 0;
                     }
-                    else if (function.Method.ReturnType.IsPrimitive || function.Method.ReturnType == typeof(string) || function.Method.ReturnType == typeof(decimal))
+                    else if (function.Method.ReturnType.IsPrimitive || function.Method.ReturnType == typeof(string) || function.Method.ReturnType == typeof(decimal) || function.Method.ReturnType.IsArray)
                     {
                         object retVal = function.DynamicInvoke(args.ToArray());
 
                         PushObject(retVal);
 
-                        return 1;
+                        returnCount = 1;
                     }
                     else if (function.Method.ReturnType.Name.Contains("ValueTuple"))
                     {
@@ -159,12 +169,14 @@ namespace LuaWrapper
                         foreach (object val in retVals)
                             PushObject(val);
 
-                        return retVals.Length;
+                        returnCount = retVals.Length;
                     }
                     else
                     {
                         throw new InvalidOperationException($"Unsupported ReturnType {function.Method.ReturnType.ToString()} in delegate");
                     }
+
+                    return returnCount;
                 }))
             };
 
@@ -224,9 +236,6 @@ namespace LuaWrapper
         /// <returns>Array of values</returns>
         private object[] TupleToArray(object tuple)
         {
-            /* if (!(tuple is ValueTuple))
-                return null;*/
-
             List<object> result = new List<object>();
 
             foreach (var f in tuple.GetType().GetFields())
@@ -279,11 +288,41 @@ namespace LuaWrapper
         /// <param name="arg">Value to push</param>
         private void PushObject(object arg)
         {
-            if (arg is int) NativeCalls.lua_pushnumber(_luaState, Convert.ToInt32(arg));
-            else if (arg is double || arg is float) NativeCalls.lua_pushnumber(_luaState, Convert.ToDouble(arg));
+            if (IsBaseNumericType(arg.GetType())) NativeCalls.lua_pushnumber(_luaState, Convert.ToInt32(arg));
+            else if (arg is double || arg is float || arg is decimal) NativeCalls.lua_pushnumber(_luaState, Convert.ToDouble(arg));
             else if (arg is string) NativeCalls.lua_pushstring(_luaState, (string)arg);
             else if (arg is bool) NativeCalls.lua_pushboolean(_luaState, (int)arg);
             else if (arg is null) NativeCalls.lua_pushnil(_luaState);
+            else if (arg.GetType().IsArray)
+            {
+                NativeCalls.lua_createtable(_luaState, ((Array)arg).Length, 0);
+
+                var index = 1;
+                foreach (var i in (Array)arg)
+                {
+                    PushObject(index++);
+                    PushObject(i);
+                }
+                NativeCalls.lua_settable(_luaState, -1 - ((Array)arg).Length * 2);
+            };
+        }
+
+        private bool IsBaseNumericType(Type type)
+        {
+            switch (Type.GetTypeCode(type))
+            {
+                case TypeCode.SByte:
+                case TypeCode.Byte:
+                case TypeCode.Int16:
+                case TypeCode.UInt16:
+                case TypeCode.Int32:
+                case TypeCode.UInt32:
+                case TypeCode.Int64:
+                case TypeCode.UInt64:
+                    return true;
+            }
+
+            return false;
         }
     }
 }
