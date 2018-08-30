@@ -209,7 +209,7 @@ namespace LuaWrapper
         /// </summary>
         /// <param name="input">Double to convert</param>
         /// <param name="toConvert">Any primitive numeric .NET type</param>
-        /// <returns></returns>
+        /// <returns></returns> 
         private object LuaDoubleToNumeric(object input, Type toConvert)
         {
             switch (Type.GetTypeCode(toConvert))
@@ -295,15 +295,14 @@ namespace LuaWrapper
             else if (arg is null) NativeCalls.lua_pushnil(_luaState);
             else if (arg.GetType().IsArray)
             {
-                NativeCalls.lua_createtable(_luaState, ((Array)arg).Length, 0);
-
+                NativeCalls.lua_newtable(_luaState);
                 var index = 1;
                 foreach (var i in (Array)arg)
                 {
                     PushObject(index++);
                     PushObject(i);
+                    NativeCalls.lua_settable(_luaState, -3);
                 }
-                NativeCalls.lua_settable(_luaState, -1 - ((Array)arg).Length * 2);
             };
         }
 
